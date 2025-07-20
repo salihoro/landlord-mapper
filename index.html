@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Lanlord Mapper</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+</head>
+<body class="flex h-screen">
+
+  <div id="sidebar" class="w-80 p-4 bg-gray-100 overflow-y-auto shadow-md">
+    <h3 class="text-xl font-semibold mb-4">Filter Parcels</h3>
+    <label class="block mb-4">
+      <span class="text-gray-700">Landlord Name:</span>
+      <input type="text" id="filter-landlord" class="mt-1 block w-full border rounded p-2" placeholder="e.g., Smith">
+    </label>
+    <label class="block mb-4">
+      <span class="text-gray-700">Zip Code:</span>
+      <input type="text" id="filter-zip" class="mt-1 block w-full border rounded p-2" placeholder="e.g., 78701">
+    </label>
+    <button id="apply-filters" class="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">Apply Filters</button>
+    <div id="summary" class="mt-6 text-sm text-gray-700"></div>
+  </div>
+
+  <div id="map" class="flex-1"></div>
+
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script type="module">
+    import { loadData, fetchFirstThousandParcels, filterParcelsByZip, filterParcelsByLandlord, filterParcelsByMinUnits, summarizeLandlordsByParcelCount, summarizeParcelsByOwner } from './dataLoader.js';
+
+    const map = L.map('map').setView([30.2672, -97.7431], 12);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(map);
+
+    let allParcels = [];
+    let markers = [];
+
+    function renderParcels(parcels) {
+      markers.forEach(m => map.removeLayer(m));
+      markers = [];
+      parcels.forEach(p => {
+        if (!p.latitude || !p.longitude) return;
+        const marker = L.marker([p.latitude, p.longitude]).addTo(map);
+        marker.bindPopup(`
+          <strong>${p.street_address}</strong><br>
+          Title Holder: ${p.title_holder?.name || 'N/A'}<br>
+          Landlords: <ul>${p.landlords.map(l => `<li>${l.name}</li>`).join('')}</ul>
+        `);
+        markers.push(marker);
+      });
+    }
+
+    function updateSummary(parcels) {
+      const summary = summarizeLandlordsByParcelCount(parcels);
+      document.getElementById('summary').innerHTML = `
+        <h4 class="font-semibold">Top Landlords</h4>
+        <ul class="list-disc list-inside">${summary.slice(0, 5).map(([name, count]) => `<li>${name}: ${count}</li>`).join('')}</ul>
+      `;
+    }
+
+    document.getElementById('apply-filters').addEventListener('click', () => {
+      const landlord = document.getElementById('filter-landlord').value.trim();
+      const zip = document.getElementById('filter-zip').value.trim();
+
+      let filtered = [...allParcels];
+      if (landlord) filtered = filterParcelsByLandlord(filtered, landlord);
+      if (zip) filtered = filterParcelsByZip(filtered, zip);
+
+      renderParcels(filtered);
+      updateSummary(filtered);
+    });
+
+    loadData().then(data => {
+      allParcels = data.parcels;
+      renderParcels(allParcels);
+      updateSummary(allParcels);
+    });
+
+    loadData().then(({ owners }) => {
+      const counts = summarizeParcelsByOwner(owners);
+      console.log(counts.slice(0, 10));
+    });
+
+    fetchFirstThousandParcels()
+      .then(data => {
+        console.log('First 1000 parcels:', data);
+      })
+      .catch(err => {
+        console.error(err);
+      })
+  </script>
+
+</body>
+</html>
