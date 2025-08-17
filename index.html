@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Lanlord Mapper</title>
+  <title>Landlord Mapper</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
@@ -27,7 +27,7 @@
 
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script type="module">
-    import { loadData, fetchFirstThousandParcels, filterParcelsByZip, filterParcelsByLandlord, filterParcelsByMinUnits, summarizeLandlordsByParcelCount, summarizeParcelsByOwner } from './dataLoader.js';
+    import { loadData, fetchFirstThousandOwners, fetchAllOwners, fetchOwnersByParcel, filterParcelsByZip, filterParcelsByLandlord, filterParcelsByMinUnits, summarizeLandlordsByParcelCount, summarizeParcelsByOwner } from './dataLoader.js';
 
     const map = L.map('map').setView([30.2672, -97.7431], 12);
 
@@ -80,18 +80,44 @@
       updateSummary(allParcels);
     });
 
-    loadData().then(({ owners }) => {
-      const counts = summarizeParcelsByOwner(owners);
-      console.log(counts.slice(0, 10));
-    });
+    // loadData().then(({ owners }) => {
+    //   const counts = summarizeParcelsByOwner(owners);
+    //   console.log(counts.slice(0, 10));
+    // });
 
-    fetchFirstThousandParcels()
+    fetchFirstThousandOwners()
       .then(data => {
-        console.log('First 1000 parcels:', data);
+        console.log("owners REST");
+        console.log('First 1000 owners:', data);
       })
       .catch(err => {
         console.error(err);
-      })
+      });
+
+    fetchOwnersByParcel();
+
+
+  (async () => {
+    try {
+      const rows = await fetchAllOwners({ pageSize: 1000 });
+      console.log("owners REST");
+      console.log(`Loaded ${rows.length.toLocaleString()} rows.`);
+
+      // Initialize your DataTable here with the fetched rows
+      // $('#tbl').DataTable({ data: rows, columns: [...] });
+      console.log('All owners:', rows);
+    } catch (err) {
+      console.error(err);
+    }
+  })();
+
+  (async () => {
+    const { owners } = await loadData();
+
+    console.log('owners JSON');
+    console.log('Loaded ', owners.length);
+    console.log(owners);
+  })();
   </script>
 
 </body>

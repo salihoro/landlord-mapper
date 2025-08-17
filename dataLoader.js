@@ -1,6 +1,8 @@
 // dataLoader.js
 const SUPABASE_URL = 'https://tvobyllquridjqrrigjh.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_Mte49as-tS6_epDO2XjK7Q_uSsOAP8p';
+const TABLE = "Owners";            // change to your table name if different
+const PAGE_SIZE = 1000;            // server max per request
 
 // Load and normalize parcel data with landlord and title holder info
 export async function loadData() {
@@ -10,6 +12,7 @@ export async function loadData() {
       fetch('https://tvobyllquridjqrrigjh.supabase.co/storage/v1/object/public/landlord-data//title_holders.json').then(r => r.json()),
       fetch('https://tvobyllquridjqrrigjh.supabase.co/storage/v1/object/public/landlord-data//registered_agents.json').then(r => r.json()),
       fetch('https://tvobyllquridjqrrigjh.supabase.co/storage/v1/object/public/landlord-data//owners.json').then(r => r.json())
+      // fetch('https://tvobyllquridjqrrigjh.supabase.co/storage/v1/object/public/landlord-data/owners_unedited.json').then(r => r.json()),
     ]);
 
      // ◀︎ build an owner-count lookup by parcel ID
@@ -91,7 +94,7 @@ export function summarizeParcelsByOwner(owners) {
 }
 
 
-export async function fetchFirstThousandParcels() {
+export async function fetchFirstThousandOwners() {
   const res = await fetch(
     `${SUPABASE_URL}/rest/v1/Owners?select=*&limit=1000`, 
     {
@@ -110,3 +113,73 @@ export async function fetchFirstThousandParcels() {
   return res.json();
 }
 
+
+// Fetch one page using HTTP Range headers.
+// Uses a stable ORDER to avoid duplicates across pages.
+async function fetchOwnersPage(start, end, { signal } = {}) {
+  const url =
+    `${SUPABASE_URL}/rest/v1/${TABLE}` +
+    // ↓ pick a stable, indexed column to order by (prefer your primary key)
+    `?select=*&order=situs_pID.asc.nullsfirst`;
+
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      Prefer: "count=exact",        // ask server to include total in Content-Range
+      "Range-Unit": "items",
+      Range: `${start}-${end}`,     // e.g. "0-999"
+    },
+    signal,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`Error ${res.status} ${res.statusText}: ${text}`);
+  }
+
+  const contentRange = res.headers.get("Content-Range"); // "0-999/27463"
+  const total = contentRange ? parseInt(contentRange.split("/")[1], 10) : undefined;
+  const data = await res.json();
+  return { data, total };
+}
+
+// Fetch ALL rows by paging until we reach the reported total.
+export async function fetchAllOwners({ pageSize = PAGE_SIZE, signal } = {}) {
+  let all = [];
+  let start = 0;
+  let total;
+
+  while (true) {
+    const end = start + pageSize - 1;
+    const { data, total: t } = await fetchOwnersPage(start, end, { signal });
+    if (total === undefined) total = t;      // set on first page
+
+    all.push(...data);
+
+    // stop conditions: no more rows or we hit the reported total
+    if (!data.length || (typeof total === "number" && all.length >= total)) break;
+
+    start += pageSize;
+  }
+
+  return all;
+}
+
+export async function fetchOwnersByParcel() {
+  const params = new URLSearchParams({
+  situs_pID: 'eq.158218',
+  order: 'owner_index.asc',
+});
+const res = await fetch(`${SUPABASE_URL}/rest/v1/owners_by_parcel?${params}`, {
+  headers: {
+    apikey: SUPABASE_KEY,
+    Authorization: `Bearer ${SUPABASE_KEY}`,
+  },
+});
+const rows = await res.json();
+console.log("owners_by_parcel REST");
+console.log(rows);
+}

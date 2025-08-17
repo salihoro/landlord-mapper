@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DataTables + Supabase Storage JSON</title>
+
+  <!-- DataTables core -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/2.0.8/css/dataTables.dataTables.min.css">
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.datatables.net/2.0.8/js/dataTables.min.js"></script>
+
+  <!-- Optional: Scroller plugin (only if you want virtual scrolling instead of paging) -->
+  <link rel="stylesheet" href="https://cdn.datatables.net/scroller/2.4.3/css/scroller.dataTables.min.css">
+  <script src="https://cdn.datatables.net/scroller/2.4.3/js/dataTables.scroller.min.js"></script>
+
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif; margin: 24px; }
+    .small { color:#666; font-size: 0.9rem; margin-bottom: 12px; }
+    #status { margin: 8px 0 16px; color:#444; }
+    table.dataTable thead th { white-space: nowrap; }
+  </style>
+</head>
+<body>
+  <h1>Owners Table</h1>
+  <!-- <div class="small">
+    Replace <code>STORAGE_URL</code> below with your Supabase Storage public (or signed) URL to
+    <code>owners_unedited.json</code>.
+  </div> -->
+
+  <div id="status">Loading…</div>
+  <table id="ownersTable" class="display" style="width:100%"></table>
+
+  <script>
+    // TODO: paste your Supabase Storage URL here (public or signed)
+    // Example public URL:
+    // https://YOUR_PROJECT_REF.supabase.co/storage/v1/object/public/YOUR_BUCKET/owners_unedited.json
+    const STORAGE_URL = "https://tvobyllquridjqrrigjh.supabase.co/storage/v1/object/public/landlord-data/owners_unedited.json";
+
+    // Helper: build DataTables columns from the first row's keys
+    function columnsFromRow(row) {
+      return Object.keys(row).map(k => ({ data: k, title: k }));
+    }
+
+    async function loadData() {
+      try {
+        const res = await fetch(STORAGE_URL, { cache: "no-store" });
+        if (!res.ok) throw new Error(`Fetch failed: ${res.status} ${res.statusText}`);
+        const rows = await res.json();
+
+        if (!Array.isArray(rows) || rows.length === 0) {
+          document.getElementById('status').textContent = "No rows found in JSON.";
+          return;
+        }
+
+        document.getElementById('status').textContent =
+          `Loaded ${rows.length.toLocaleString()} rows from JSON.`;
+
+        // --- Option A: Regular paging (recommended for clarity) ---
+        $('#ownersTable').DataTable({
+          data: rows,
+          columns: columnsFromRow(rows[0]),
+          deferRender: true,       // speeds up DOM creation
+          pageLength: 50,
+          lengthMenu: [25, 50, 100, 250, 500],
+          searchDelay: 200,
+          order: [],               // no initial ordering
+        });
+
+        // --- Option B: Virtual scroll (uncomment to use instead of paging) ---
+        // $('#ownersTable').DataTable({
+        //   data: rows,
+        //   columns: columnsFromRow(rows[0]),
+        //   deferRender: true,
+        //   scrollY: '60vh',
+        //   scroller: true,        // requires the Scroller plugin
+        //   paging: false,
+        //   order: [],
+        // });
+
+      } catch (err) {
+        console.error(err);
+        document.getElementById('status').textContent = "Error: " + err.message;
+      }
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
